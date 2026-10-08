@@ -4,30 +4,41 @@ import csv
 import re
 import subprocess
 from pathlib import Path
-from run_benchmarks import ROOT, SIZES, prepare, command, run
+
+from run_benchmarks import (
+    ROOT, SIZES, LANGUAGES,
+    prepare, command, run
+)
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--repetitions', type=int, default=5)
-    p.add_argument('--timeout', type=int, default=30)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repetitions", type=int, default=5)
+    parser.add_argument("--timeout", type=int, default=30)
+    args = parser.parse_args()
+
+    if args.repetitions < 1:
+        parser.error("Repetitions must be positive.")
+
+    if not Path("/usr/bin/time").exists():
+        raise RuntimeError(
+            "GNU /usr/bin/time is required on Linux."
+        )
 
     build = prepare()
-
-    if not Path('/usr/bin/time').exists():
-        raise SystemExit('GNU /usr/bin/time is required (run on Linux).')
-
     rows = []
+    expected = {}
 
     for n in SIZES:
-        for language in ('Python', 'Java', 'C'):
+        for language in LANGUAGES:
             cmd = command(language, n, build)
+
+            # Separate invocation, not JVM steady-state warm-up.
             run(cmd, args.timeout)
 
-            for rep in range(1, args.repetitions + 1):
-                proc = subprocess.run(
-                    ['/usr/bin/time', '-v', *cmd],
+            for repetition in range(1, args.repetitions + 1):
+                process = subprocess.run(
+                    ["/usr/bin/time", "-v", *cmd],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -35,31 +46,66 @@ def main():
                 )
 
                 match = re.search(
-                    r'Maximum resident set size \(kbytes\):\s*(\d+)',
-                    proc.stderr
+                    r"Maximum resident set size "
+                    r"\(kbytes\):\s*(\d+)",
+                    process.stderr
                 )
 
-                if not match:
-                    raise RuntimeError('GNU time did not report peak RSS')
+                if match is None:
+                    raise RuntimeError(
+                        "Peak RSS was not reported."
+                    )
 
-                _, size, _, checksum = next(
-                    x for x in proc.stdout.splitlines()
-                    if x.startswith('RESULT,')
-                ).split(',')
+                result_lines = [
+                    line for line in process.stdout.splitlines()
+                    if line.startswith("RESULT,")
+                ]
 
-                mib = int(match.group(1)) / 1024
-                rows.append((language, int(size), rep, mib, int(checksum)))
-                print(rows[-1], flush=True)
+                if len(result_lines) != 1:
+                    raise RuntimeError(
+                        "Invalid program output."
+                    )
 
-    path = ROOT / 'results/raw_memory_results.csv'
+                _, size, _, checksum = (
+                    result_lines[0].split(",")
+                )
 
-    with path.open('w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['language', 'n', 'repetition', 'peak_rss_mib', 'checksum'])
+                size = int(size)
+                checksum = int(checksum)
+
+                if size != n:
+                    raise RuntimeError("Matrix size mismatch.")
+
+                if n in expected and checksum != expected[n]:
+                    raise RuntimeError("Checksum mismatch.")
+
+                expected[n] = checksum
+
+                peak_rss_mib = int(match.group(1)) / 1024
+
+                rows.append([
+                    language, n, repetition,
+                    peak_rss_mib, "success"
+                ])
+
+                print(
+                    f"{language:6} n={n:3} "
+                    f"run={repetition} "
+                    f"RSS={peak_rss_mib:.3f} MiB"
+                )
+
+    output = ROOT / "results/raw_memory_results.csv"
+
+    with output.open("w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            "language", "matrix_size", "repetition",
+            "peak_rss_mib", "status"
+        ])
         writer.writerows(rows)
 
-    print('Saved', path)
+    print(f"\nSaved: {output}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
