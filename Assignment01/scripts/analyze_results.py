@@ -1,49 +1,105 @@
-
 import csv
 import statistics
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+RESULTS = ROOT / "results"
+SIZES = [50, 100, 200, 300]
+LANGUAGES = ("python", "java", "c")
 
 
-def quartiles(values):
-    x = sorted(values)
-    half = len(x) // 2
-    lower = x[:half]
-    upper = x[-half:]
-    return statistics.median(lower), statistics.median(upper)
+def read_groups(filename, value_column):
+    groups = defaultdict(list)
+
+    with (RESULTS / filename).open(newline="") as file:
+        for row in csv.DictReader(file):
+            if "status" in row and row["status"] != "success":
+                continue
+
+            key = (
+                row["language"].lower(),
+                int(row["matrix_size"])
+            )
+            groups[key].append(float(row[value_column]))
+
+    return groups
+
+
+def summary(values):
+    if not values:
+        raise ValueError("No measurements available.")
+
+    values = sorted(values)
+    median = statistics.median(values)
+
+    # Median-of-halves quartiles.
+    half = len(values) // 2
+    lower = values[:half]
+    upper = values[-half:]
+
+    q1 = statistics.median(lower)
+    q3 = statistics.median(upper)
+
+    return median, q1, q3, q3 - q1
 
 
 def main():
-    grouped = defaultdict(list)
+    runtime = read_groups(
+        "raw_results.csv", "time_seconds"
+    )
+    memory = read_groups(
+        "raw_memory_results.csv", "peak_rss_mib"
+    )
 
-    for name, column, metric in [
-        ('raw_results.csv', 'seconds', 'runtime'),
-        ('raw_memory_results.csv', 'peak_rss_mib', 'memory')
-    ]:
-        with (ROOT / 'results' / name).open(newline='') as f:
-            for row in csv.DictReader(f):
-                grouped[(metric, row['language'], int(row['n']))].append(
-                    float(row[column])
-                )
+    output = RESULTS / "summary_results.csv"
 
-    with (ROOT / 'results/summary_results.csv').open('w', newline='') as f:
-        writer = csv.writer(f)
+    with output.open("w", newline="") as file:
+        writer = csv.writer(file)
+
         writer.writerow([
-            'metric', 'language', 'n', 'repetitions',
-            'median', 'iqr', 'q1', 'q3'
+            "language",
+            "matrix_size",
+            "runtime_successful_runs",
+            "median_time_seconds",
+            "q1_time_seconds",
+            "q3_time_seconds",
+            "iqr_time_seconds",
+            "median_peak_rss_mib",
+            "q1_peak_rss_mib",
+            "q3_peak_rss_mib",
+            "iqr_peak_rss_mib",
+            "theoretical_matrix_storage_mib",
+            "theoretical_multiplications",
+            "theoretical_additions"
         ])
 
-        for (metric, language, n), values in sorted(grouped.items()):
-            q1, q3 = quartiles(values)
-            writer.writerow([
-                metric, language, n, len(values),
-                statistics.median(values), q3 - q1, q1, q3
-            ])
+        for n in SIZES:
+            for language in LANGUAGES:
+                key = (language, n)
 
-    print('Saved results/summary_results.csv')
+                if key not in runtime or key not in memory:
+                    raise ValueError(
+                        f"Missing measurements: {key}"
+                    )
+
+                times = runtime[key]
+                rss = memory[key]
+
+                t_med, t_q1, t_q3, t_iqr = summary(times)
+                m_med, m_q1, m_q3, m_iqr = summary(rss)
+
+                storage = 3 * n * n * 8 / (1024 ** 2)
+
+                writer.writerow([
+                    language, n, len(times),
+                    t_med, t_q1, t_q3, t_iqr,
+                    m_med, m_q1, m_q3, m_iqr,
+                    storage, n ** 3, n ** 3
+                ])
+
+    print(f"Saved: {output}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
