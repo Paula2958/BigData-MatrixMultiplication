@@ -1,51 +1,137 @@
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+import argparse
+import csv
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
 
-static double elapsed(const struct timespec *a, const struct timespec *b) {
-    return (double)(b->tv_sec - a->tv_sec) + (b->tv_nsec - a->tv_nsec) / 1e9;
-}
+ROOT = Path(__file__).resolve().parents[1]
+SIZES = [50, 100, 200, 300]
+LANGUAGES = ("python", "java", "c")
 
-int main(int argc, char **argv) {
-    if (argc != 2) return 2;
-    int n = atoi(argv[1]);
-    if (n < 1 || n > 10000) return 2;
 
-    size_t cells = (size_t)n * n;
-    int64_t *a = malloc(cells * sizeof(*a));
-    int64_t *b = malloc(cells * sizeof(*b));
-    int64_t *c = calloc(cells, sizeof(*c));
-    if (!a || !b || !c) return 3;
+def prepare():
+    build = ROOT / "build"
+    build.mkdir(exist_ok=True)
 
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++) {
-            size_t p = (size_t)i * n + j;
-            a[p] = (int64_t)((p % 10) + 1);
-            b[p] = (int64_t)(((p + 3) % 10) + 1);
-        }
+    subprocess.run([
+        "javac", "-d", str(build),
+        str(ROOT / "src/java/MatrixMultiplication.java")
+    ], check=True)
 
-    struct timespec start, end;
-    timespec_get(&start, TIME_UTC);
+    subprocess.run([
+        "clang", "-O2", "-std=c11",
+        str(ROOT / "src/c/matrix_multiplication.c"),
+        "-o", str(build / "matrix_c")
+    ], check=True)
 
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++) {
-            int64_t total = 0;
-            for (int k = 0; k < n; k++)
-                total += a[(size_t)i * n + k] * b[(size_t)k * n + j];
-            c[(size_t)i * n + j] = total;
-        }
+    return build
 
-    timespec_get(&end, TIME_UTC);
 
-    int64_t checksum = 0;
-    for (size_t p = 0; p < cells; p++) checksum += c[p];
+def command(language, n, build):
+    commands = {
+        "python": [
+            sys.executable,
+            str(ROOT / "src/python/matrix_multiplication.py"),
+            str(n)
+        ],
+        "java": [
+            "java", "-cp", str(build),
+            "MatrixMultiplication", str(n)
+        ],
+        "c": [
+            str(build / "matrix_c"), str(n)
+        ]
+    }
+    return commands[language]
 
-    printf("RESULT,%d,%.9f,%lld\n", n, elapsed(&start, &end), (long long)checksum);
 
-    free(a);
-    free(b);
-    free(c);
-    return 0;
-}
+def run(cmd, timeout=30):
+    process = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=timeout
+    )
+
+    lines = [
+        line for line in process.stdout.splitlines()
+        if line.startswith("RESULT,")
+    ]
+
+    if len(lines) != 1:
+        raise RuntimeError(
+            f"Expected one RESULT line: {process.stdout}"
+        )
+
+    _, n, seconds, checksum = lines[0].split(",")
+
+    return int(n), float(seconds), int(checksum)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repetitions", type=int, default=5)
+    parser.add_argument("--timeout", type=int, default=30)
+    args = parser.parse_args()
+
+    if args.repetitions < 1:
+        parser.error("Repetitions must be positive.")
+
+    build = prepare()
+    results_dir = ROOT / "results"
+    results_dir.mkdir(exist_ok=True)
+
+    rows = []
+    checksums = {}
+
+    for n in SIZES:
+        for language in LANGUAGES:
+            cmd = command(language, n, build)
+
+            # Independent warm-up invocation.
+            run(cmd, args.timeout)
+
+            for repetition in range(1, args.repetitions + 1):
+                size, seconds, checksum = run(
+                    cmd, args.timeout
+                )
+
+                if size != n:
+                    raise RuntimeError("Matrix size mismatch.")
+
+                if n in checksums and checksums[n] != checksum:
+                    raise RuntimeError(
+                        f"Checksum mismatch: {language}, n={n}"
+                    )
+
+                checksums[n] = checksum
+
+                rows.append([
+                    language, n, repetition,
+                    seconds, checksum
+                ])
+
+                print(
+                    f"{language:6} n={n:3} "
+                    f"run={repetition} time={seconds:.9f}s"
+                )
+
+    output = results_dir / "raw_results.csv"
+
+    with output.open("w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            "language", "matrix_size", "repetition",
+            "time_seconds", "checksum"
+        ])
+        writer.writerows(rows)
+
+    print(f"\nSaved: {output}")
+
+
+if __name__ == "__main__":
+    main()
