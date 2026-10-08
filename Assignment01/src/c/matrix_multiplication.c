@@ -1,4 +1,4 @@
-
+#define _POSIX_C_SOURCE 200809L
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
         }
 
     struct timespec start, end;
-    timespec_get(&start, TIME_UTC);
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++) {
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
             c[(size_t)i * n + j] = total;
         }
 
-    timespec_get(&end, TIME_UTC);
+    clock_gettime(CLOCK_MONOTONIC, &end);
 
     int64_t checksum = 0;
     for (size_t p = 0; p < cells; p++) checksum += c[p];
