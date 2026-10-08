@@ -152,6 +152,47 @@ results/
 
 The environment file records the operating system, Python version, Java version, Clang version and compiler settings.
 
+
+
+## Experimental data provenance
+
+The `results/` directory contains recorded benchmark measurements.
+
+The raw CSV files are preserved as experimental evidence. The analysis and plotting scripts are designed to reproduce summary statistics and figures from those files.
+
+The repository may contain subsequent corrections to the benchmarking code. Measurements obtained before a correction must not be represented as measurements obtained with the corrected implementation.
+
+For a new experimental run, record the execution environment, compiler settings, program versions and measurement procedure. Compare the newly generated results against the accompanying scientific paper before replacing any reported values.
+
+## Statistical methodology
+
+Five measurements are used per language and matrix size.
+
+The median represents the central execution-time or memory measurement.
+
+The interquartile range is calculated as Q3 - Q1 using the median-of-halves convention.
+
+Theoretical matrix-element storage assumes three n-by-n matrices with eight bytes per element:
+
+3 * n * n * 8 bytes
+
+This theoretical storage is different from Peak RSS, which measures resident memory for the complete process.
+
+## Figure generation
+
+The four figures are generated from `results/summary_results.csv`.
+
+Run:
+
+```bash
+python3 scripts/generate_figures.py
+```
+
+The generated files are stored in `figures/`.
+
+The scientific report may use its own PGFPlots figures, but both representations must use the same experimental data.
+
+
 ## Interpretation
 
 The experiment investigates how matrix size and programming-language implementation affect execution time and process-level memory consumption.
