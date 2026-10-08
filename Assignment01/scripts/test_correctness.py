@@ -1,4 +1,3 @@
-
 import subprocess
 from run_benchmarks import prepare, command, run
 
