@@ -6,198 +6,147 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
-RESULTS = ROOT / "results"
 FIGURES = ROOT / "figures"
 FIGURES.mkdir(exist_ok=True)
 
-with (RESULTS / "summary_results.csv").open(newline="") as file:
-    DATA = list(csv.DictReader(file))
+with (ROOT / "results/summary_results.csv").open(newline="") as f:
+    data = list(csv.DictReader(f))
 
+LANGUAGES = ("python", "java", "c")
 COLORS = {
-    "python": "#3769b4",
-    "java": "#e67e22",
-    "c": "#27a069"
+    "python": "#4263A3",
+    "java": "#C47B40",
+    "c": "#388576"
 }
-
 MARKERS = {
     "python": "o",
     "java": "s",
     "c": "^"
 }
 
-LANGUAGES = ("python", "java", "c")
+plt.rcParams.update({
+    "font.family": "DejaVu Sans",
+    "font.size": 10,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "savefig.facecolor": "white"
+})
 
 
-def series(language, column):
+def get_values(language, column):
     rows = sorted(
-        [
-            row for row in DATA
-            if row["language"].lower() == language
-        ],
-        key=lambda row: int(row["matrix_size"])
+        (r for r in data if r["language"] == language),
+        key=lambda r: int(r["matrix_size"])
     )
 
-    if not rows:
-        raise ValueError(f"No data for {language}")
+    if len(rows) != 4:
+        raise ValueError(f"Expected four sizes for {language}")
 
-    x = [int(row["matrix_size"]) for row in rows]
-    y = [float(row[column]) for row in rows]
+    return (
+        [int(r["matrix_size"]) for r in rows],
+        [float(r[column]) for r in rows]
+    )
 
-    return x, y
 
-
-def style(ax, ylabel, title):
-    ax.set_title(title, fontsize=13, fontweight="bold")
-    ax.set_xlabel("Matrix size (n)")
+def setup_axes(ax, ylabel):
+    ax.set_xlabel("Matrix dimension (n)")
     ax.set_ylabel(ylabel)
-    ax.set_xticks([50, 100, 200, 300])
-    ax.grid(True, alpha=0.20)
+    ax.grid(alpha=0.17)
     ax.set_axisbelow(True)
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    ax.set_xticks([50, 100, 200, 300])
 
 
-def save(fig, filename):
-    fig.savefig(
-        FIGURES / filename,
-        dpi=220,
-        bbox_inches="tight"
-    )
+def save(fig, name):
+    fig.tight_layout()
+    fig.savefig(FIGURES / name, dpi=300)
     plt.close(fig)
 
 
-# ---------------------------------------------------
 # Figure 1: Execution time
-# ---------------------------------------------------
+fig, ax = plt.subplots(figsize=(7.4, 4.6))
 
-fig, ax = plt.subplots(figsize=(8, 5.2))
-
-for language in LANGUAGES:
-    x, y = series(language, "median_time_seconds")
+for lang in LANGUAGES:
+    x, y = get_values(lang, "median_time_seconds")
     ax.plot(
-        x, y,
-        marker=MARKERS[language],
-        color=COLORS[language],
-        linewidth=2.2,
-        markersize=6,
-        label=language.capitalize()
+        x, y, marker=MARKERS[lang],
+        color=COLORS[lang], linewidth=2,
+        label=lang.capitalize()
     )
 
-style(
-    ax,
-    "Median execution time (seconds)",
-    "Matrix Multiplication: Execution Time"
-)
+setup_axes(ax, "Median execution time (s)")
 ax.set_ylim(bottom=0)
 ax.legend(frameon=False)
 save(fig, "execution_time.png")
 
 
-# ---------------------------------------------------
 # Figure 2: Log-log execution time
-# ---------------------------------------------------
+fig, ax = plt.subplots(figsize=(7.4, 4.6))
 
-fig, ax = plt.subplots(figsize=(8, 5.2))
+for lang in LANGUAGES:
+    x, y = get_values(lang, "median_time_seconds")
+    if any(value <= 0 for value in y):
+        raise ValueError("Logarithmic times must be positive.")
 
-for language in LANGUAGES:
-    x, y = series(language, "median_time_seconds")
     ax.plot(
-        x, y,
-        marker=MARKERS[language],
-        color=COLORS[language],
-        linewidth=2.2,
-        markersize=6,
-        label=language.capitalize()
+        x, y, marker=MARKERS[lang],
+        color=COLORS[lang], linewidth=2,
+        label=lang.capitalize()
     )
 
 ax.set_xscale("log")
 ax.set_yscale("log")
-
-style(
-    ax,
-    "Median execution time (seconds, log scale)",
-    "Execution Time: Log-Log Comparison"
-)
-
-ax.set_xticks([50, 100, 200, 300])
+setup_axes(ax, "Median execution time (s)")
 ax.set_xticklabels(["50", "100", "200", "300"])
 ax.legend(frameon=False)
-
 save(fig, "execution_time_loglog.png")
 
 
-# ---------------------------------------------------
-# Figure 3: Peak RSS
-# ---------------------------------------------------
+# Figure 3: Peak RSS memory
+fig, ax = plt.subplots(figsize=(7.4, 4.6))
 
-fig, ax = plt.subplots(figsize=(8, 5.2))
-
-for language in LANGUAGES:
-    x, y = series(language, "median_peak_rss_mib")
+for lang in LANGUAGES:
+    x, y = get_values(lang, "median_peak_rss_mib")
     ax.plot(
-        x, y,
-        marker=MARKERS[language],
-        color=COLORS[language],
-        linewidth=2.2,
-        markersize=6,
-        label=language.capitalize()
+        x, y, marker=MARKERS[lang],
+        color=COLORS[lang], linewidth=2,
+        label=lang.capitalize()
     )
 
-style(
-    ax,
-    "Median Peak RSS (MiB)",
-    "Process Memory Usage"
-)
+setup_axes(ax, "Median Peak RSS (MiB)")
 ax.set_ylim(bottom=0)
 ax.legend(frameon=False)
-
 save(fig, "memory_usage.png")
 
 
-# ---------------------------------------------------
 # Figure 4: Normalized scaling
-# ---------------------------------------------------
+fig, ax = plt.subplots(figsize=(7.4, 4.6))
 
-fig, ax = plt.subplots(figsize=(8, 5.2))
+for lang in LANGUAGES:
+    x, y = get_values(lang, "median_time_seconds")
+    if y[0] <= 0:
+        raise ValueError("Invalid baseline.")
 
-for language in LANGUAGES:
-    x, y = series(language, "median_time_seconds")
-
-    baseline = y[0]
-    if baseline <= 0:
-        raise ValueError("Invalid runtime baseline")
-
-    normalized = [value / baseline for value in y]
+    normalized = [value / y[0] for value in y]
 
     ax.plot(
-        x, normalized,
-        marker=MARKERS[language],
-        color=COLORS[language],
-        linewidth=2.2,
-        markersize=6,
-        label=language.capitalize()
+        x, normalized, marker=MARKERS[lang],
+        color=COLORS[lang], linewidth=2,
+        label=lang.capitalize()
     )
 
 x = [50, 100, 200, 300]
-theory = [(n / 50) ** 3 for n in x]
+theoretical = [(n / 50) ** 3 for n in x]
 
 ax.plot(
-    x, theory,
-    "--",
-    color="#666666",
-    linewidth=2.2,
-    label="Theoretical O(n³)"
+    x, theoretical, "--", color="#777777",
+    linewidth=2, label="Theoretical cubic growth"
 )
 
-style(
-    ax,
-    "Runtime relative to n = 50",
-    "Measured vs. Theoretical Cubic Growth"
-)
+setup_axes(ax, "Runtime relative to n = 50")
 ax.set_ylim(bottom=0)
 ax.legend(frameon=False)
-
 save(fig, "normalized_scaling.png")
 
-print("Generated four figures successfully.")
+print("Four figures generated in figures/")
