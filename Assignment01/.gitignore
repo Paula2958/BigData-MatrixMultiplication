@@ -1,5 +1,17 @@
+# Compiled files
 build/
+*.class
+*.o
+*.out
+
+# Python
 __pycache__/
 *.pyc
-.DS_Store
 .venv/
+
+# Operating system
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
