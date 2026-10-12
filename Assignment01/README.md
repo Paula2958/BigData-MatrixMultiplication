@@ -1,232 +1,195 @@
+# Matrix Multiplication Performance: Python, Java and C
 
-# Big Data — Individual Assignment 1
+**Big Data — Individual Assignment 1**  
+Universidad de Las Palmas de Gran Canaria  
+Degree in Data Science and Engineering  
+Academic year 2026–2027
 
-## Basic Matrix Multiplication in Python, Java and C
+## Overview
 
-This repository contains the source code, benchmark automation, correctness tests, raw measurements, analysis scripts and generated figures for Assignment 1 (ULPGC, Big Data, 2026–2027).
+This challenge investigates how programming-language preference affects the execution time, memory consumption and scalability of classical dense matrix multiplication.
 
-**Research question:** How does programming-language choice affect execution time and process-level memory usage for equivalent classical matrix multiplication implementations as matrix size increases?
+The equal simple algorithm is carried out in Python, Java and C, the use of three nested loops and no optimized matrix multiplication libraries.
+
+## Research question
+
+How does the choice of programming language have an effect on execution time and memory usage as the size of a matrix multiplication problem increases?
+
+## Hypothesis
+
+All implementations have theoretical time complexity O(n³), but their practical performance will vary because of language execution models, compilation and memory representation.
+
+## Project structure
+
+- `src/python/` — Python implementation
+- `src/java/` — Java implementation
+- `src/c/` — C implementation
+- `scripts/test_correctness.py` — correctness validation
+- `scripts/run_benchmarks.py` — runtime and memory measurements
+- `scripts/analyze_results.py` — statistical analysis
+- `scripts/generate_figures.py` — visualization
+- `results/` — raw measurements, summaries and environment
+- `figures/` — generated graphs
 
 ## Algorithm
 
-All three implementations use the same `i-j-k` triple loop:
+All three implementations use the classical i-j-k loop order:
 
 ```text
-for i = 0 ... n-1
-    for j = 0 ... n-1
+for i in range(n):
+    for j in range(n):
         total = 0
-        for k = 0 ... n-1
+        for k in range(n):
             total += A[i][k] * B[k][j]
         C[i][j] = total
 ```
 
-The algorithm has O(n³) time complexity and O(n²) matrix storage.
+The time complexity is O(n³), while storage for the three matrices grows as O(n²).
 
-No NumPy or BLAS matrix multiplication is used.
+## Input generation
 
-The input matrices are generated deterministically:
+The input matrices are square and contain deterministic integer values from 1 to 10.
 
-- `A[i][j] = ((i*n+j) % 10)+1`
-- `B[i][j] = ((i*n+j+3) % 10)+1`
+A[i][j] = ((i*n + j) % 10) + 1
 
-Python uses lists of built-in integers, Java uses `long[][]`, and C uses contiguous `int64_t` arrays.
+B[i][j] = ((i*n + j + 3) % 10) + 1
 
-The numerical values agree, but the physical memory representations differ.
+No random seed is needed because no random generator is used.
 
-## Experimental setup
+The same logical inputs are used in every language.
 
-Matrix sizes:
+Python uses lists of built-in integers, Java uses long[][], and C uses contiguous int64_t arrays.
 
-- 50
-- 100
-- 200
-- 300
+## Experimental design
 
-Five measured repetitions are performed per language and matrix size.
+Matrix dimensions: 50, a hundred, 2 hundred, three hundred.
 
-Execution time is summarized using:
+Five measured repetitions are accomplished for each language and size.
 
-- Median
-- Interquartile range (IQR)
+One impartial warm-up invocation is carried out before the measured repetitions.
 
-Memory is measured using Peak Resident Set Size (Peak RSS).
+Execution time covers handiest the multiplication operation, such as creation of the output matrix in Python and Java.
 
-The C implementation is compiled with:
+Input generation and checksum calculation are excluded from the timed location.
 
-`clang -O2 -std=c11`
+The C output matrix is allocated earlier than timing. Therefore, output allocation isn't dealt with identically throughout languages; that is a hassle of the assessment.
 
-## Prerequisites
+Memory is measured using GNU time's maximum resident set size (Peak RSS), which incorporates the entire manner and its runtime.
 
-Run the complete experiment on Linux with:
+Each measurement uses a fresh technique. Java regular-country JIT performance isn't isolated.
+
+C is compiled the usage of Clang with -O2 -std=c11.
+
+## Experimental limits
+
+- Timeout: 30 seconds in step with process
+- Memory price range: 1024 MiB Peak RSS in step with method
+- Repetitions: 5
+- Correctness ought to be established before benchmarking
+
+## Requirements
+
+A Linux environment with:
 
 - Python 3
-- Java JDK 21 or newer
+- Java JDK
 - Clang
-- GNU `/usr/bin/time`
+- GNU /usr/bin/time
 - Matplotlib
 
-Install the Python plotting dependency from inside `Assignment01`:
+Install the Python plotting dependency:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-## Running the experiment
+## Reproducing the experiment
 
-All commands below are executed from inside the `Assignment01` directory.
+All commands must be run from the repository root.
 
-### 1. Test correctness
+### 1. Validate correctness
 
 ```bash
 python3 scripts/test_correctness.py
 ```
 
-The test compares the results against a reference calculation for six matrix sizes in all three languages.
-
-### 2. Measure execution time
+### 2. Run benchmarks
 
 ```bash
-python3 scripts/run_benchmarks.py --repetitions 5 --timeout 30
+python3 scripts/run_benchmarks.py
 ```
 
-This generates:
+This produces:
 
-`results/raw_results.csv`
+- results/raw_results.csv
+- results/environment.txt
 
-Input generation and output matrix allocation are excluded from the timed multiplication kernel.
-
-Each measured invocation starts a new process. The Java measurements therefore do not establish steady-state JVM performance.
-
-### 3. Measure memory usage
-
-```bash
-python3 scripts/run_memory_benchmarks.py --repetitions 5 --timeout 30
-```
-
-This generates:
-
-`results/raw_memory_results.csv`
-
-The script uses GNU `/usr/bin/time -v` and converts Peak RSS from KiB to MiB.
-
-Peak RSS measures the complete process, not only the matrices.
-
-### 4. Analyze results
+### 3. Analyze measurements
 
 ```bash
 python3 scripts/analyze_results.py
 ```
 
-This generates:
+This produces:
 
-`results/summary_results.csv`
+- results/summary_results.csv
 
-The summary includes median, IQR, Q1 and Q3. Quartiles use the median-of-halves convention.
-
-### 5. Generate graphs
+### 4. Generate figures
 
 ```bash
 python3 scripts/generate_figures.py
 ```
 
-This generates:
+This produces:
 
-- `figures/execution_time.png`
-- `figures/execution_time_loglog.png`
-- `figures/memory_usage.png`
-- `figures/normalized_scaling.png`
-
-The graphs are generated from measured results rather than hard-coded experimental values.
-
-## Results files
-
-After running the experiment, the results directory contains:
-
-```text
-results/
-├── raw_results.csv
-├── raw_memory_results.csv
-├── summary_results.csv
-└── environment.txt
-```
-
-The environment file records the operating system, Python version, Java version, Clang version and compiler settings.
-
-
-
-## Experimental data provenance
-
-The `results/` directory contains recorded benchmark measurements.
-
-The raw CSV files are preserved as experimental evidence. The analysis and plotting scripts are designed to reproduce summary statistics and figures from those files.
-
-The repository may contain subsequent corrections to the benchmarking code. Measurements obtained before a correction must not be represented as measurements obtained with the corrected implementation.
-
-For a new experimental run, record the execution environment, compiler settings, program versions and measurement procedure. Compare the newly generated results against the accompanying scientific paper before replacing any reported values.
+- figures/execution_time.png
+- figures/execution_time_loglog.png
+- figures/memory_usage.png
+- figures/normalized_scaling.png
 
 ## Statistical methodology
 
-Five measurements are used per language and matrix size.
+The median is used as the significant measurement.
 
-The median represents the central execution-time or memory measurement.
+The interquartile range is calculated as Q3 - Q1.
 
-The interquartile range is calculated as Q3 - Q1 using the median-of-halves convention.
+Q1 and Q3 follow the median-of-halves conference.
 
-Theoretical matrix-element storage assumes three n-by-n matrices with eight bytes per element:
+Raw measurements are retained to make the analysis reproducible.
 
-3 * n * n * 8 bytes
+## Figures
 
-This theoretical storage is different from Peak RSS, which measures resident memory for the complete process.
+The four figures examine:
 
-## Figure generation
+1. Median execution time
+2. Execution time using logarithmic axes
+3. Peak RSS reminiscence utilization
+four. Normalized runtime against theoretical cubic growth
 
-The four figures are generated from `results/summary_results.csv`.
+All figures are generated from the experimental CSV records.
 
-Run:
+## Interpretation and limitations
 
-```bash
-python3 scripts/generate_figures.py
-```
+The test compares specific implementations beneath precise execution conditions.
 
-The generated files are stored in `figures/`.
+The implementations have equal mathematical operations however specific memory representations and runtime overhead.
 
-The scientific report may use its own PGFPlots figures, but both representations must use the same experimental data.
+Peak RSS isn't always equivalent to the theoretical garage requirement of the matrices.
 
+Short runtimes, technique startup effects, compiler optimizations, caching and JVM conduct may additionally have an impact on measured results.
 
-## Interpretation
+The execution order is fixed instead of randomized.
 
-The experiment investigates how matrix size and programming-language implementation affect execution time and process-level memory consumption.
+Consequently, the results ought to now not be interpreted as a prevalent rating of programming languages.
 
-The classical algorithm has O(n³) time complexity, but real execution times also depend on compilation, runtime overhead, memory representation and system effects.
+## Scientific report
 
-The theoretical storage requirement for three matrices containing eight-byte elements is:
+The scientific report is developed after the implementations and results have been established.
 
-`3 * n * n * 8` bytes.
+It provides the studies question, theoretical history, methodology, experimental consequences, discussion, barriers and conclusions.
 
-This value is not directly equivalent to measured Peak RSS.
+## AI disclosure
 
-## Limitations
+Generative AI assisted with making plans and code drafting.
 
-The experiment evaluates only four matrix sizes, uses five repetitions per configuration and runs on one machine.
-
-Python, Java and C use different physical data representations.
-
-The C implementation is compiled with optimization enabled.
-
-JVM warm-up and steady-state JIT performance are not isolated.
-
-The results should not be interpreted as a universal ranking of programming languages.
-
-## Important note about the scientific report
-
-The experimental values depend on the machine used.
-
-If new benchmarks are executed, the numerical results, environment description and graphs in the accompanying scientific paper must be checked and updated to match the recorded measurements.
-
-## Generative AI disclosure
-
-Generative AI assisted with experimental planning, code drafting, documentation and scripting.
-
-The student remains responsible for reviewing the code, executing the experiments, validating the measurements, interpreting the results and defending the conclusions.
-
-AI-generated text is not experimental evidence.
+The scholar is answerable for the implementations, executing the experiments, checking correctness, validating the outcomes and decoding the findings.
