@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Compiled C executable
+/matrix
+
+# Temporary files
+*.tmp
+.DS_Store
